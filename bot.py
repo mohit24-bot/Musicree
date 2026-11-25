@@ -29,7 +29,6 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     temp_dir = tempfile.mkdtemp()
     
-    # Sirf ios aur android client use kar rahe hain (web_safari hata diya)
     ydl_opts = {
         'format': 'm4a/bestaudio/best', 
         'nocheckcertificate': True,
