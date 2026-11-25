@@ -8,7 +8,6 @@ import yt_dlp
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, error as MP3Error
 from mutagen.mp4 import MP4, MP4Cover
-from mutagen.flac import FLAC, Picture
 
 BOT_TOKEN = "9022968857:AAEUM24Mv1w64XJrM4OUELO9wU59hZrG4mU"
 
@@ -39,7 +38,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'cookiefile': 'cookies.txt',
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'web_safari'] 
+                'player_client': ['ios', 'web_safari']
             }
         },
         'http_headers': {
@@ -82,7 +81,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 img_data = requests.get(thumbnail_url).content
                 with open(thumb_path, 'wb') as handler:
                     handler.write(img_data)
-            except:
+            except Exception:
                 pass
 
         try:
@@ -108,22 +107,23 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         audio['covr'] = [MP4Cover(img_file.read(), imageformat=MP4Cover.FORMAT_JPEG)]
                 audio.save()
                 
-            elif ext == 'webm':
-          
         except Exception as meta_err:
-            print(f"Metadata Error (Ignore): {meta_err}")
+            print(f"Metadata Error (Ignored): {meta_err}")
 
         await status_msg.edit_text("📤 Uploading to Telegram...")
+        
+        thumb_file = open(thumb_path, 'rb') if os.path.exists(thumb_path) else None
         
         with open(final_filename, 'rb') as audio_file:
             await update.message.reply_audio(
                 audio=audio_file,
                 title=title,
                 performer=artist,
-                thumbnail=open(thumb_path, 'rb') if os.path.exists(thumb_path) else None
+                thumbnail=thumb_file
             )
 
-        # Cleanup
+        if thumb_file:
+            thumb_file.close()
         if os.path.exists(thumb_path):
             os.remove(thumb_path)
         os.remove(final_filename)
