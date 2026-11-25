@@ -30,24 +30,21 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     temp_dir = tempfile.mkdtemp()
     
     ydl_opts = {
-    'format': 'bestaudio/best',
-    'nocheckcertificate': True,
-    'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
-    'quiet': True,
-    'no_warnings': True,
-    'cookiefile': 'cookies.txt',
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['ios', 'web']
-        }
-    },
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    },
-}
+        'format': 'best',
+        'nocheckcertificate': True,
+        'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
+        'quiet': True,
+        'no_warnings': True,
+        'cookiefile': 'cookies.txt',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android']
+            }
+        },
+    }
 
     try:
-        max_retries = 5
+        max_retries = 3
         info = None
         filename = None
 
@@ -58,11 +55,9 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     filename = ydl.prepare_filename(info)
                 break
             except Exception as e:
-                error_str = str(e).lower()
-                if "page needs to be reloaded" in error_str and attempt < max_retries - 1:
-                    wait_time = 5 + (attempt * 3)
-                    await status_msg.edit_text(f"🔄 YouTube busy. Retrying in {wait_time}s ({attempt+1}/{max_retries})...")
-                    time.sleep(wait_time)
+                if attempt < max_retries - 1:
+                    await status_msg.edit_text(f"🔄 YouTube busy. Retrying ({attempt+1}/{max_retries})...")
+                    time.sleep(3)
                 else:
                     raise e
 
@@ -70,7 +65,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         artist = info.get('uploader', 'Unknown Artist')
         thumbnail_url = info.get('thumbnail')
         
-        ext = info.get('ext', 'm4a')
+        ext = info.get('ext', 'mp4')
         final_filename = os.path.join(temp_dir, f"final_song.{ext}")
         os.rename(filename, final_filename)
 
@@ -100,7 +95,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img_file.read()))
                 audio.save()
                 
-            elif ext == 'm4a':
+            elif ext in ['m4a', 'mp4']:
                 audio = MP4(final_filename)
                 audio['\xa9nam'] = title
                 audio['\xa9ART'] = artist
@@ -108,9 +103,8 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     with open(thumb_path, 'rb') as img_file:
                         audio['covr'] = [MP4Cover(img_file.read(), imageformat=MP4Cover.FORMAT_JPEG)]
                 audio.save()
-                
-        except Exception as meta_err:
-            print(f"Metadata Error (Ignored): {meta_err}")
+        except Exception:
+            pass
 
         await status_msg.edit_text("📤 Uploading to Telegram...")
         
@@ -134,14 +128,12 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await status_msg.edit_text("❌ Error: Could not download.\nMake sure the link is valid and public.")
-        print(f"Main Error: {e}")
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mp3", download_mp3))
     
-    print("Music Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
