@@ -1,0 +1,120 @@
+import os
+import tempfile
+import requests
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+import yt_dlp
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, error
+
+BOT_TOKEN = "9022968857:AAEUM24Mv1w64XJrM4OUELO9wU59hZrG4mU"
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🎵 Welcome to the Music Bot!\n\n"
+        "Send me a YouTube link like this:\n"
+        "`/mp3 https://youtu.be/...`",
+        parse_mode="Markdown"
+    )
+
+async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("⚠️ Please provide a YouTube link.\nExample: /mp3 <url>")
+        return
+
+    url = context.args[0]
+    status_msg = await update.message.reply_text("⏳ Fetching audio and cover... Please wait.")
+
+    temp_dir = tempfile.mkdtemp()
+    
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
+        'quiet': True,
+        'no_warnings': True,
+        'cookiefile': 'cookies.txt',  # Yeh line cookies file use karegi
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv', 'mweb', 'web_safari']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        },
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            
+        title = info.get('title', 'Unknown Title')
+        artist = info.get('uploader', 'Unknown Artist')
+        thumbnail_url = info.get('thumbnail')
+        
+        mp3_filename = os.path.join(temp_dir, "final_song.mp3")
+        os.rename(filename, mp3_filename)
+
+        await status_msg.edit_text("🖼️ Setting album cover and title...")
+
+        thumb_path = ""
+        if thumbnail_url:
+            thumb_path = os.path.join(temp_dir, "cover.jpg")
+            img_data = requests.get(thumbnail_url).content
+            with open(thumb_path, 'wb') as handler:
+                handler.write(img_data)
+
+        try:
+            audio = MP3(mp3_filename, ID3=ID3)
+            try:
+                audio.add_tags()
+            except error:
+                pass
+            
+            audio.tags.add(TIT2(encoding=3, text=title))
+            audio.tags.add(TPE1(encoding=3, text=artist))
+            
+            if thumb_path and os.path.exists(thumb_path):
+                with open(thumb_path, 'rb') as img_file:
+                    audio.tags.add(
+                        APIC(
+                            encoding=3,
+                            mime='image/jpeg',
+                            type=3,
+                            desc='Cover',
+                            data=img_file.read()
+                        )
+                    )
+            audio.save()
+        except Exception as meta_err:
+            print(f"Metadata Error: {meta_err}")
+
+        await status_msg.edit_text("📤 Uploading to Telegram...")
+        
+        with open(mp3_filename, 'rb') as audio_file:
+            await update.message.reply_audio(
+                audio=audio_file,
+                title=title,
+                performer=artist
+            )
+
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
+        os.remove(mp3_filename)
+        os.rmdir(temp_dir)
+        await status_msg.delete()
+
+    except Exception as e:
+        await status_msg.edit_text("❌ Error: Could not download.\nMake sure the link is valid.")
+        print(f"Main Error: {e}")
+
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("mp3", download_mp3))
+    
+    print("Music Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
