@@ -6,7 +6,9 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import yt_dlp
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TIT2, TPE1, error
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, error as MP3Error
+from mutagen.mp4 import MP4, MP4Cover
+from mutagen.flac import FLAC, Picture
 
 BOT_TOKEN = "9022968857:AAEUM24Mv1w64XJrM4OUELO9wU59hZrG4mU"
 
@@ -24,20 +26,20 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     url = context.args[0]
-    status_msg = await update.message.reply_text("⏳ Fetching audio and cover... Please wait.")
+    status_msg = await update.message.reply_text("⏳ Fetching audio... Please wait.")
 
     temp_dir = tempfile.mkdtemp()
     
     ydl_opts = {
-        'format': 'bestaudio/best/best*',  # Yahan format update kiya gaya hai
-        'nocheckcertificate': True,        # SSL error se bachne ke liye
+        'format': 'm4a/bestaudio/best', 
+        'nocheckcertificate': True,
         'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
         'quiet': True,
         'no_warnings': True,
         'cookiefile': 'cookies.txt',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios']
+                'player_client': ['ios', 'web_safari'] 
             }
         },
         'http_headers': {
@@ -67,60 +69,69 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         artist = info.get('uploader', 'Unknown Artist')
         thumbnail_url = info.get('thumbnail')
         
-        mp3_filename = os.path.join(temp_dir, "final_song.mp3")
-        os.rename(filename, mp3_filename)
+        ext = info.get('ext', 'm4a')
+        final_filename = os.path.join(temp_dir, f"final_song.{ext}")
+        os.rename(filename, final_filename)
 
-        await status_msg.edit_text("🖼️ Setting album cover and title...")
+        await status_msg.edit_text("🖼️ Setting album cover...")
 
         thumb_path = ""
         if thumbnail_url:
             thumb_path = os.path.join(temp_dir, "cover.jpg")
-            img_data = requests.get(thumbnail_url).content
-            with open(thumb_path, 'wb') as handler:
-                handler.write(img_data)
+            try:
+                img_data = requests.get(thumbnail_url).content
+                with open(thumb_path, 'wb') as handler:
+                    handler.write(img_data)
+            except:
+                pass
 
         try:
-            audio = MP3(mp3_filename, ID3=ID3)
-            try:
-                audio.add_tags()
-            except error:
-                pass
-            
-            audio.tags.add(TIT2(encoding=3, text=title))
-            audio.tags.add(TPE1(encoding=3, text=artist))
-            
-            if thumb_path and os.path.exists(thumb_path):
-                with open(thumb_path, 'rb') as img_file:
-                    audio.tags.add(
-                        APIC(
-                            encoding=3,
-                            mime='image/jpeg',
-                            type=3,
-                            desc='Cover',
-                            data=img_file.read()
-                        )
-                    )
-            audio.save()
+            if ext == 'mp3':
+                audio = MP3(final_filename, ID3=ID3)
+                try:
+                    audio.add_tags()
+                except MP3Error:
+                    pass
+                audio.tags.add(TIT2(encoding=3, text=title))
+                audio.tags.add(TPE1(encoding=3, text=artist))
+                if thumb_path and os.path.exists(thumb_path):
+                    with open(thumb_path, 'rb') as img_file:
+                        audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img_file.read()))
+                audio.save()
+                
+            elif ext == 'm4a':
+                audio = MP4(final_filename)
+                audio['\xa9nam'] = title
+                audio['\xa9ART'] = artist
+                if thumb_path and os.path.exists(thumb_path):
+                    with open(thumb_path, 'rb') as img_file:
+                        audio['covr'] = [MP4Cover(img_file.read(), imageformat=MP4Cover.FORMAT_JPEG)]
+                audio.save()
+                
+            elif ext == 'webm':
+          
         except Exception as meta_err:
-            print(f"Metadata Error: {meta_err}")
+            print(f"Metadata Error (Ignore): {meta_err}")
 
         await status_msg.edit_text("📤 Uploading to Telegram...")
         
-        with open(mp3_filename, 'rb') as audio_file:
+        with open(final_filename, 'rb') as audio_file:
             await update.message.reply_audio(
                 audio=audio_file,
                 title=title,
-                performer=artist
+                performer=artist,
+                thumbnail=open(thumb_path, 'rb') if os.path.exists(thumb_path) else None
             )
 
+        # Cleanup
         if os.path.exists(thumb_path):
             os.remove(thumb_path)
-        os.remove(mp3_filename)
+        os.remove(final_filename)
         os.rmdir(temp_dir)
         await status_msg.delete()
 
     except Exception as e:
-        await status_msg.edit_text("❌ Error: Could not download.\nMake sure the link is valid.")
+        await status_msg.edit_text("❌ Error: Could not download.\nMake sure the link is valid and public.")
         print(f"Main Error: {e}")
 
 def main():
