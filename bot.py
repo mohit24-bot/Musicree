@@ -29,7 +29,8 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     temp_dir = tempfile.mkdtemp()
     
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio/best/best*',  # Yahan format update kiya gaya hai
+        'nocheckcertificate': True,        # SSL error se bachne ke liye
         'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
         'quiet': True,
         'no_warnings': True,
