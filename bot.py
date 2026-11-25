@@ -30,21 +30,21 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     temp_dir = tempfile.mkdtemp()
     
     ydl_opts = {
-        'format': 'm4a/bestaudio/best', 
-        'nocheckcertificate': True,
-        'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
-        'quiet': True,
-        'no_warnings': True,
-        'cookiefile': 'cookies.txt',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-        },
-    }
+    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+    'nocheckcertificate': True,
+    'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
+    'quiet': True,
+    'no_warnings': True,
+    'cookiefile': 'cookies.txt',
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['ios', 'web']
+        }
+    },
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    },
+}
 
     try:
         max_retries = 5
