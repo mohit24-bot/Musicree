@@ -29,6 +29,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     temp_dir = tempfile.mkdtemp()
     
+    # Sirf ios aur android client use kar rahe hain (web_safari hata diya)
     ydl_opts = {
         'format': 'm4a/bestaudio/best', 
         'nocheckcertificate': True,
@@ -38,7 +39,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'cookiefile': 'cookies.txt',
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'web_safari']
+                'player_client': ['ios', 'android']
             }
         },
         'http_headers': {
@@ -47,7 +48,7 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        max_retries = 3
+        max_retries = 5
         info = None
         filename = None
 
@@ -58,9 +59,11 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     filename = ydl.prepare_filename(info)
                 break
             except Exception as e:
-                if "page needs to be reloaded" in str(e).lower() and attempt < max_retries - 1:
-                    await status_msg.edit_text(f"🔄 YouTube asked for a reload. Retrying ({attempt+1}/{max_retries})...")
-                    time.sleep(3)
+                error_str = str(e).lower()
+                if "page needs to be reloaded" in error_str and attempt < max_retries - 1:
+                    wait_time = 5 + (attempt * 3)
+                    await status_msg.edit_text(f"🔄 YouTube busy. Retrying in {wait_time}s ({attempt+1}/{max_retries})...")
+                    time.sleep(wait_time)
                 else:
                     raise e
 
