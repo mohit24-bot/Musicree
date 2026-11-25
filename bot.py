@@ -9,7 +9,7 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, error as MP3Error
 from mutagen.mp4 import MP4, MP4Cover
 
-BOT_TOKEN = ""
+BOT_TOKEN = "9022968857:AAEUM24Mv1w64XJrM4OUELO9wU59hZrG4mU"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
