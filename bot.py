@@ -1,6 +1,7 @@
 import os
 import tempfile
 import requests
+import time
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import yt_dlp
@@ -32,10 +33,10 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'outtmpl': os.path.join(temp_dir, 'audio_file.%(ext)s'),
         'quiet': True,
         'no_warnings': True,
-        'cookiefile': 'cookies.txt',  # Yeh line cookies file use karegi
+        'cookiefile': 'cookies.txt',
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv', 'mweb', 'web_safari']
+                'player_client': ['android', 'ios']
             }
         },
         'http_headers': {
@@ -44,10 +45,23 @@ async def download_mp3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            
+        max_retries = 3
+        info = None
+        filename = None
+
+        for attempt in range(max_retries):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                break
+            except Exception as e:
+                if "page needs to be reloaded" in str(e).lower() and attempt < max_retries - 1:
+                    await status_msg.edit_text(f"🔄 YouTube asked for a reload. Retrying ({attempt+1}/{max_retries})...")
+                    time.sleep(3)
+                else:
+                    raise e
+
         title = info.get('title', 'Unknown Title')
         artist = info.get('uploader', 'Unknown Artist')
         thumbnail_url = info.get('thumbnail')
